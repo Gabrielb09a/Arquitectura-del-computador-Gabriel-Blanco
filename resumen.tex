@@ -1,0 +1,63 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{Arquitectura del computador Tarea 1}
+\author{Gabriel Blanco}
+\date{June 2025}
+
+\begin{document}
+
+\section*{Operandos MIPS}
+
+\begin{itemize}
+    \item \textbf{32 Registros:} Son ubicaciones de datos de acceso rápido para la CPU, utilizadas para almacenar datos que serán operandos en operaciones aritméticas. El registro \texttt{\$zero} siempre contiene el valor 0.
+    \item \textbf{30 Palabras de Memoria:} Permiten el acceso a datos directamente desde la memoria, aunque de forma más lenta que los registros. La memoria se utiliza para guardar los datos que se desbordan de los registros.
+\end{itemize}
+
+\section*{Lenguaje Ensamblador MIPS}
+
+\subsection*{1. Aritmética}
+\begin{itemize}
+    \item \texttt{add}: Suma el contenido de dos registros y guarda el resultado en un tercer registro.
+    \item \texttt{subtract}: Resta el contenido de dos registros y guarda el resultado en un tercer registro.
+    \item \texttt{addi} (add immediate): Suma el contenido de un registro con una constante (inmediato) y guarda el resultado.
+\end{itemize}
+
+\subsection*{2. Transferencia de Datos}
+\begin{itemize}
+    \item \texttt{load word (lw)}: Carga una palabra (32 bits) desde una dirección de memoria especificada a un registro.
+    \item \texttt{store word (sw)}: Almacena una palabra (32 bits) desde un registro a una dirección de memoria especificada.
+    \item \texttt{load half (lh)}: Carga media palabra (16 bits) desde una dirección de memoria especificada a un registro.
+    \item \texttt{store half (sh)}: Almacena media palabra (16 bits) desde un registro a una dirección de memoria especificada.
+    \item \texttt{load byte (lb)}: Carga un byte (8 bits) desde una dirección de memoria especificada a un registro.
+    \item \texttt{store byte (sb)}: Almacena un byte (8 bits) desde un registro a una dirección de memoria especificada.
+    \item \texttt{load upper immediate (lui)}: Carga una constante de 16 bits en los 16 bits más significativos de un registro, rellenando los 16 bits menos significativos con ceros.
+\end{itemize}
+
+\subsection*{3. Lógica}
+\begin{itemize}
+    \item \texttt{and}: Realiza una operación AND bit a bit entre el contenido de dos registros y guarda el resultado.
+    \item \texttt{or}: Realiza una operación OR bit a bit entre el contenido de dos registros y guarda el resultado.
+    \item \texttt{nor}: Realiza una operación NOR bit a bit entre el contenido de dos registros y guarda el resultado.
+    \item \texttt{and immediate (andi)}: Realiza una operación AND bit a bit entre el contenido de un registro y una constante, guardando el resultado.
+    \item \texttt{or immediate (ori)}: Realiza una operación OR bit a bit entre el contenido de un registro y una constante, guardando el resultado.
+    \item \texttt{shift left logical (sll)}: Desplaza lógicamente los bits de un registro a la izquierda por un número constante de posiciones.
+    \item \texttt{shift right logical (srl)}: Desplaza lógicamente los bits de un registro a la derecha por un número constante de posiciones.
+\end{itemize}
+
+\subsection*{4. Salto Condicional}
+\begin{itemize}
+    \item \texttt{branch on equal (beq)}: Comprueba si el contenido de dos registros es igual. Si lo son, salta a una etiqueta (dirección) especificada.
+    \item \texttt{branch on not equal (bne)}: Comprueba si el contenido de dos registros no es igual. Si no lo son, salta a una etiqueta (dirección) especificada.
+    \item \texttt{set on less than (slt)}: Comprueba si el contenido de un registro es menor que el de otro. Si es verdadero, el registro destino se establece a 1; de lo contrario, se establece a 0.
+    \item \texttt{set on less than immediate (slti)}: Comprueba si el contenido de un registro es menor que una constante. Si es verdadero, el registro destino se establece a 1; de lo contrario, se establece a 0.
+\end{itemize}
+
+\subsection*{5. Salto Incondicional}
+\begin{itemize}
+    \item \texttt{jump (j)}: Salta incondicionalmente a una dirección especificada.
+    \item \texttt{jump register (jr)}: Salta incondicionalmente a la dirección contenida en un registro.
+    \item \texttt{jump and link (jal)}: Salta incondicionalmente a una dirección especificada y guarda la dirección de retorno (la dirección de la instrucción siguiente a \texttt{jal}) en el registro \texttt{\$ra} (register $31$), lo cual es útil para llamadas a subrutinas.
+\end{itemize}
+
+\end{document}
