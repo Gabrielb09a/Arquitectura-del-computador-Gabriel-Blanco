@@ -1,0 +1,366 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{listings} % Para bloques de código
+\usepackage{xcolor}   % Para colores en listings
+
+\geometry{a4paper, margin=1in}
+
+\lstdefinestyle{Mips32}{
+    language=Assembler,
+    basicstyle=\ttfamily\small,
+    commentstyle=\color{gray}\ttfamily,
+    keywordstyle=\color{blue}\bfseries,
+    identifierstyle=\color{black},
+    stringstyle=\color{purple},
+    showstringspaces=false,
+    numberstyle=\tiny\color{gray},
+    numbers=left,
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color{white},
+    frame=single,
+    frameround=!!!!,
+    rulesepcolor=\color{gray},
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    morekeywords={beq,addi,sw,lw,jal,mul,jr,li,sll,srl,slt,and,or,nor,xor,sllv,srlv,srav,add,addu,sub,subu,div,divu,mult,multu,mfhi,mflo,syscall}
+}
+
+\lstdefinestyle{C}{
+    language=C,
+    basicstyle=\ttfamily\small,
+    commentstyle=\color{gray}\ttfamily,
+    keywordstyle=\color{blue}\bfseries,
+    identifierstyle=\color{black},
+    stringstyle=\color{purple},
+    showstringspaces=false,
+    numberstyle=\tiny\color{gray},
+    numbers=left,
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color{white},
+    frame=single,
+    frameround=!!!!,
+    rulesepcolor=\color{gray},
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2
+}
+
+\title{PRÁCTICA DE LABORATORIO 1}
+\author{
+    Gabriel Blanco C.I:31.346.296
+    \and
+    Andrés Roche C.I:30.656.948
+}
+\date{7 de Julio de 2025} % La fecha actual o la fecha de entrega
+
+
+\begin{document}
+
+\maketitle % Esta instrucción imprime el título, autor y fecha.
+\textbf{}
+
+\section*{Pregunta 1}
+\subsection*{¿Cómo se implementa la recursividad en MIPS32?}
+Para implementar la recursividad en MIPS32, se utilizan principalmente las etiquetas (`nombre:`) para marcar direcciones de memoria y la instrucción `jal` (jump and link) para realizar llamadas a subrutinas.
+
+La implementación sigue la estructura clásica de los algoritmos recursivos: se define un caso base, se manejan los argumentos, se gestionan los valores de retorno y se establece el cuerpo del código recursivo.
+
+A continuación, se presenta un ejemplo de la función factorial en C para ilustrar el concepto:
+\begin{lstlisting}[style=C, caption={Función Factorial en C}]
+int fact(int n){
+	// caso base
+	if(n==1)
+		return 1;
+	else
+		// resto del codigo
+		return fact(n-1) * n;
+}
+\end{lstlisting}
+
+Aquí un ejemplo de la función factorial implementada en MIPS32:
+\begin{lstlisting}[style=Mips32, caption={Función Factorial en MIPS32}]
+factorial:
+	# Caso base
+	beq $a0, $zero, caso_base
+	
+	# Preparar la pila
+	addi $sp, $sp, -8
+	sw $ra, 4($sp)
+	sw $a0, 0($sp)
+
+	# (n - 1)
+	addi $a0, $a0, -1
+
+	# factorial(n - 1)
+	jal factorial
+	
+	# Restaurar registros de la pila
+	lw $a0, 0($sp)
+	lw $ra, 4($sp)
+	addi $sp, $sp, 8
+
+	# factorial(n - 1) * n
+	mul $v0, $v0, $a0
+	
+	jr $ra
+	
+caso_base:
+	li $v0, 1
+	jr $ra
+\end{lstlisting}
+Como se observa, la implementación en MIPS32 incluye un caso base manejado por la instrucción `beq`, la preparación de la pila para almacenar el registro de retorno (`\$ra`) y los argumentos (`\$a0`), la disminución del argumento para la siguiente llamada (`n-1` en `\$a0`), el uso de `\$v0` para el valor de retorno, y la llamada recursiva mediante `jal factorial`.
+
+\subsection*{¿Qué papel cumple la pila (\$sp)?}
+El uso de la pila es una parte fundamental y obligatoria en MIPS para la implementación de funciones, a diferencia de lenguajes de alto nivel donde su gestión es implícita.
+
+\begin{lstlisting}[style=Mips32, caption={Uso de la pila en MIPS32}]
+# Preparar la pila
+	addi $sp, $sp, -8
+	sw $ra, 4($sp)
+	sw $a0, 0($sp)
+
+# Sacar los datos
+	lw $a0, 0($sp)
+	lw $ra, 4($sp)
+	addi $sp, $sp, 8
+\end{lstlisting}
+Mediante la pila, se almacenan datos cruciales como parámetros, variables locales y direcciones de retorno de cada llamada a función. Esto es vital para que la función pueda volver al punto correcto en la ejecución de la función llamante.
+
+\section*{Pregunta 2}
+\subsection*{¿Qué riesgos de desbordamiento existen?}
+Existen principalmente dos tipos de desbordamiento que pueden surgir en este contexto:
+
+\begin{enumerate}
+    \item \textbf{Desbordamiento de Pila (Stack Overflow)}: Ocurre cuando la pila se llena, impidiendo que se puedan asignar más marcos de pila para nuevas llamadas a funciones o almacenamiento de datos.
+    \item \textbf{Desbordamiento Aritmético (Arithmetic Overflow)}: Sucede cuando el resultado de una operación aritmética excede el rango máximo que puede almacenar el tipo de dato asignado. Por ejemplo, en un entero de 32 bits, que puede almacenar hasta $2,147,483,647$, un resultado mayor a este valor causaría un desbordamiento.
+\end{enumerate}
+
+\subsection*{¿Cómo mitigarlos?}
+
+\subsubsection*{Para el Desbordamiento de Pila}
+\begin{enumerate}
+    \item \textbf{Conversión a Algoritmos Iterativos}: Transformar un algoritmo recursivo en iterativo elimina la necesidad de múltiples llamadas a la pila. Sin embargo, esto puede hacer que algunos algoritmos sean menos legibles.
+    \item \textbf{Programación Dinámica (Memoización)}: Consiste en almacenar los resultados de llamadas a funciones en una caché (por ejemplo, un diccionario o un arreglo). Antes de realizar un cálculo, se verifica si el resultado ya existe en la caché. Si es así, se devuelve; de lo contrario, se calcula y se guarda. Aunque no elimina directamente la profundidad de la recursión, reduce drásticamente las llamadas redundantes, lo que puede ayudar a mantener la pila más pequeña. No obstante, si la entrada es muy grande, la profundidad de la pila aún podría ser un problema.
+    \item \textbf{Optimización de Cola (Tail Call Optimization - TCO)}: Algunos compiladores o intérpretes inteligentes pueden optimizar las llamadas de cola para que no consuman un nuevo marco de pila. (Cabe destacar que MIPS32 generalmente no soporta TCO de forma nativa).
+    \item \textbf{Aumentar el Tamaño de la Pila}: Es posible configurar un tamaño de pila mayor, aunque esta solución depende del sistema operativo y no siempre es viable o deseable.
+\end{enumerate}
+
+\subsubsection*{Para el Desbordamiento Aritmético}
+\begin{enumerate}
+    \item \textbf{Verificar los Límites Antes de la Operación}: Implementar comprobaciones para asegurar que el resultado de una operación no excederá el rango del tipo de dato antes de realizarla. Esto implica establecer límites para las funciones o subrutinas.
+    \item \textbf{Utilizar un Tipo de Dato Más Grande}: En lenguajes de alto nivel, se puede cambiar el tipo de dato (por ejemplo, de `int` a `long int`) para aumentar el rango de valores almacenables. En MIPS32, sin embargo, no existe una forma directa de "aumentar" el valor de un `int` a un tipo de mayor capacidad directamente.
+\end{enumerate}
+
+\section*{Pregunta 3}
+\subsection*{¿Qué diferencias encontraste entre una implementación iterativa y una recursiva en cuanto al uso de memoria y registros?}
+
+Algunas de las diferencias que tiene la implementación iterativa vs recursiva:
+
+\subsubsection*{Gestión de la Pila}
+\begin{itemize}
+\item \textbf{Implementación Iterativa}: El uso de la pila es mínimo, limitándose principalmente a almacenar la dirección de retorno (\$ra) de la llamada inicial a la función o subrutina.
+\item \textbf{Implementación Recursiva}: El consumo de la pila es significativo, ya que requiere el almacenamiento de la dirección de retorno (\$ra) y los parámetros de cada llamada (\$a0) en marcos de pila individuales, lo que se acumula con la profundidad de la recursión.
+\end{itemize}
+
+\subsubsection*{Riesgo de Desbordamiento de Pila (Stack Overflow)}
+\begin{itemize}
+\item \textbf{Implementación Iterativa}: El riesgo de desbordamiento de pila es muy bajo, siendo virtualmente nulo para algoritmos comunes como la secuencia de Fibonacci.
+\item \textbf{Implementación Recursiva}: Presenta un alto riesgo de desbordamiento de pila, especialmente cuando se trabaja con valores de n grandes, debido a la acumulación de marcos de pila con cada llamada recursiva.
+\end{itemize}
+
+\subsubsection*{Utilización de Registros}
+\begin{itemize}
+\item \textbf{Implementación Iterativa}: Tiende a hacer mayor uso de variables temporales almacenadas directamente en los registros del procesador para la manipulación de datos durante la ejecución.
+\item \textbf{Implementación Recursiva}: Depende en mayor medida de la pila para el almacenamiento de valores temporales y el contexto de cada invocación de la función, reduciendo la dependencia directa de los registros del procesador para variables temporales a largo plazo.
+\end{itemize}
+
+\section*{Pregunta 4}
+
+\subsection*{¿Qué diferencias encontraste entre los ejemplos académicos del libro y un ejercicio completo y operativo en MIPS32?}
+
+\subsection*{Fibonacci iterativo}
+\begin{itemize}
+    \item \textbf{Implementación del libro (estándar):} Se enfoca en \textbf{calcular y devolver únicamente el valor del n-ésimo término} de Fibonacci (ej., F(n) en \texttt{\$v0}). Es ideal cuando solo necesitas un valor específico.
+    \item \textbf{Nuestra Implementación:} Tiene como objetivo \textbf{imprimir todos los valores de la secuencia} hasta el n-ésimo término (parámetro \texttt{\$a0}). Es más útil para visualización o depuración, mostrando la progresión completa.
+\end{itemize}
+
+---
+
+\subsection*{Fibonacci Recursivo}
+\begin{itemize}
+    \item \textbf{Casos Base:} El \textbf{Código 1} usa una definición no estándar (F(n)=1 para n<3), mientras que el \textbf{Código 2} utiliza la definición estándar y correcta (F(n)=n para n$\le$1).
+    \item \textbf{Manejo de Registros:} El \textbf{Código 1} guarda y restaura explícitamente el registro \texttt{\$s1} en la pila porque lo usa para almacenar el resultado de una llamada recursiva, lo cual es una buena práctica para registros "callee-saved". El \textbf{Código 2}, en cambio, guarda directamente el resultado de la llamada recursiva en la pila, evitando la necesidad de manipular un registro \texttt{\$s}.
+    \item \textbf{Flujo del Caso Base:} El \textbf{Código 1} salta directamente al epílogo de la función al alcanzar un caso base. El \textbf{Código 2} salta a una sección específica (\texttt{base\_case}) que gestiona explícitamente la restauración de la pila y el registro de retorno.
+\end{itemize}
+
+\section*{Pregunta 5}
+
+\subsection*{Elaborar un tutorial de la ejecución paso a paso en MARS.}
+
+
+\section{Sección \texttt{.data}}
+La sección \texttt{.data} se utiliza para declarar y reservar espacio para las variables y cadenas de caracteres que el programa usará.
+
+\begin{itemize}
+    \item \textbf{\texttt{prompt}}: Es una cadena de texto que se mostrará al usuario para pedirle que ingrese un número. La directiva \texttt{.asciiz} indica que es una cadena ASCII terminada en un carácter nulo (cero).
+    \item \textbf{\texttt{result}}: Es otra cadena de texto usada para mostrar antes del resultado final del cálculo.
+    \item \textbf{\texttt{newline}}: Es una cadena que contiene solo un salto de línea (\textbackslash n), utilizada para formatear la salida en la consola.
+\end{itemize}
+
+---
+
+\section{Sección \texttt{.text} y \texttt{main}}
+La sección \texttt{.text} contiene el código ejecutable de tu programa. La directiva \texttt{.globl main} hace que la etiqueta \texttt{main} sea global, indicando el punto de entrada principal del programa donde comienza la ejecución.
+
+\subsection*{Solicitar Entrada al Usuario}
+Esta parte del código es responsable de interactuar con el usuario para obtener el valor de $n$.
+\begin{itemize}
+    \item Se carga el valor $\mathbf{4}$ en el registro \texttt{\$v0} para indicar que se desea realizar una llamada al sistema para \textbf{imprimir una cadena}.
+    \item Luego, se carga la dirección de la cadena \texttt{prompt} en el registro \texttt{\$a0}, que es el registro estándar para pasar argumentos a las llamadas al sistema.
+    \item Finalmente, se ejecuta la instrucción \texttt{syscall} para mostrar el mensaje "Ingrese n para calcular fib(n): " en la consola.
+\end{itemize}
+
+\subsection*{Leer la Entrada del Usuario}
+Después de solicitar la entrada, el programa debe leer el número que el usuario ingresa.
+\begin{itemize}
+    \item Se carga el valor $\mathbf{5}$ en \texttt{\$v0} para especificar que la siguiente llamada al sistema será para \textbf{leer un entero}.
+    \item Se ejecuta \texttt{syscall}. El entero ingresado por el usuario es automáticamente almacenado por el sistema operativo en el registro \texttt{\$v0}.
+    \item Para preparar este valor como argumento para la función Fibonacci, su contenido se \textbf{mueve} de \texttt{\$v0} a \texttt{\$a0}.
+\end{itemize}
+
+\subsection*{Validar Entrada}
+Es importante asegurar que la entrada del usuario sea válida para evitar comportamientos inesperados en la función recursiva.
+\begin{itemize}
+    \item Se utiliza la instrucción \texttt{bltz \$a0, invalido}. Esto significa saltar si es menor que cero. Si el valor de $n$ (que está en \texttt{\$a0}) es negativo, el programa salta directamente a la etiqueta \texttt{invalido}, evitando el cálculo de Fibonacci para valores no definidos en esta implementación.
+\end{itemize}
+
+\subsection*{Calcular \texttt{fib(n)}}
+Si la entrada es válida, se procede a calcular el número de Fibonacci.
+\begin{itemize}
+    \item Se realiza una llamada a la subrutina \texttt{fibonacci} utilizando la instrucción \textbf{\texttt{jal fibonacci}}. Esta instrucción no solo salta a la función, sino que también guarda la dirección de la siguiente instrucción (después del \texttt{jal}) en el registro \texttt{\$ra} (return address). Esto es crucial para que la función \texttt{fibonacci} sepa a dónde debe regresar una vez que complete su tarea.
+    \item Después de que la función \texttt{fibonacci} retorna, el resultado del cálculo (que por convención se encuentra en \texttt{\$v0}) se \textbf{mueve} al registro \texttt{\$s0}. Este es un registro de tipo "callee-saved", lo que significa que su valor se preserva a través de llamadas a funciones, asegurando que el resultado no se pierda antes de ser mostrado.
+\end{itemize}
+
+\subsection*{Mostrar Resultado}
+Una vez que el número de Fibonacci ha sido calculado, se muestra al usuario.
+\begin{itemize}
+    \item Se repite el patrón de llamadas al sistema para imprimir. Primero, se carga $\mathbf{4}$ en \texttt{\$v0} y la dirección de la cadena \texttt{result} en \texttt{\$a0} para imprimir "El resultado es: ".
+    \item Luego, se carga $\mathbf{1}$ en \texttt{\$v0} y el resultado almacenado en \texttt{\$s0} se mueve a \texttt{\$a0} para \textbf{imprimir el número entero} calculado.
+    \item Finalmente, se carga $\mathbf{4}$ en \texttt{\$v0} y la dirección de \texttt{newline} en \texttt{\$a0} para imprimir un salto de línea, mejorando la legibilidad de la salida.
+\end{itemize}
+
+\subsection*{Salir del Programa y Etiqueta \texttt{invalido}}
+El programa debe terminar su ejecución de manera ordenada.
+\begin{itemize}
+    \item Se carga el valor $\mathbf{10}$ en \texttt{\$v0} para invocar la llamada al sistema de \textbf{terminar el programa}.
+    \item La etiqueta \texttt{invalido} es el destino del salto condicional \texttt{bltz}. Si la entrada inicial fue negativa, el programa salta directamente aquí y termina sin realizar ningún cálculo, manejando así la validación básica.
+\end{itemize}
+
+---
+
+\section{Función \texttt{fibonacci} (La Recursión)}
+Esta es la función central que implementa la lógica recursiva para calcular el número de Fibonacci. El manejo de la pila es fundamental aquí para que la recursión funcione correctamente.
+
+\subsection*{Configuración del Marco de Pila}
+Cada vez que la función \texttt{fibonacci} es llamada, se prepara un "marco de pila" para guardar su contexto.
+\begin{itemize}
+    \item La instrucción \texttt{addi \$sp, \$sp, -12} ajusta el puntero de la pila (\texttt{\$sp}), restando $12$ bytes. Esto reserva espacio en la pila para tres "palabras" (cada una de 4 bytes) que se utilizarán para guardar el contexto de esta llamada a la función.
+    \item Se guarda el contenido del registro \texttt{\$ra} (dirección de retorno) en la pila en la posición $8(\$sp)$ (\texttt{sw \$ra, 8(\$sp)}). Esto es crucial para la recursión: cada llamada a \texttt{fibonacci} necesita saber a dónde regresar después de completarse.
+    \item Se guarda el argumento actual $n$ (que está en \texttt{\$a0}) en la pila en la posición $4(\$sp)$ (\texttt{sw \$a0, 4(\$sp)}). Este valor de $n$ es necesario para calcular $n-2$ después de que se complete la llamada recursiva para $n-1$.
+\end{itemize}
+
+\subsection*{Casos Base de la Recursión}
+La recursión debe tener condiciones de parada, conocidas como casos base, para evitar un bucle infinito.
+\begin{itemize}
+    \item Se carga el valor $\mathbf{1}$ en un registro temporal \texttt{\$t0}.
+    \item La instrucción \texttt{ble \$a0, \$t0, base_case} ("branch if less than or equal") comprueba si el valor de $n$ (en \texttt{\$a0}) es menor o igual a $1$. Si es así, el programa salta a la etiqueta \texttt{base\_case}. Esto maneja los casos:
+        \begin{itemize}
+            \item $fib(0) = 0$
+            \item $fib(1) = 1$
+        \end{itemize}
+\end{itemize}
+
+\subsection*{Calcular \texttt{fib(n-1)}}
+Si no es un caso base, la función se llama a sí misma para calcular el término anterior.
+\begin{itemize}
+    \item Se decrementa el valor de $n$ en \texttt{\$a0} en $\mathbf{1}$ (\texttt{addi \$a0, \$a0, -1}) para preparar el argumento para la llamada recursiva a $fib(n-1)$.
+    \item Se realiza la llamada recursiva a \texttt{fibonacci} con \texttt{jal fibonacci}. Cuando esta llamada retorna, el resultado de $fib(n-1)$ estará en \texttt{\$v0}.
+    \item El resultado de $fib(n-1)$ (que está en \texttt{\$v0}) se \textbf{guarda} en la pila en la posición $0(\$sp)$ (\texttt{sw \$v0, 0(\$sp)}). Esto es necesario porque la siguiente llamada recursiva (`fib(n-2)`) utilizará \texttt{\$v0} para su propio resultado, y el valor de $fib(n-1)$ se necesita posteriormente para la suma final.
+\end{itemize}
+
+\subsection*{Calcular \texttt{fib(n-2)}}
+Después de calcular $fib(n-1)$, se procede con $fib(n-2)$.
+\begin{itemize}
+    \item Se \textbf{recupera} el valor original de $n$ de la pila (\texttt{lw \$a0, 4(\$sp)}). Es crucial hacer esto porque \texttt{\$a0} fue modificado en el paso anterior para la llamada a $fib(n-1)$.
+    \item Se decrementa este $n$ original en $\mathbf{2}$ (\texttt{addi \$a0, \$a0, -2}) para preparar el argumento para la llamada a $fib(n-2)$.
+    \item Se realiza otra llamada recursiva a \texttt{fibonacci} con \texttt{jal fibonacci}. Al retornar, el resultado de $fib(n-2)$ estará en \texttt{\$v0}.
+\end{itemize}
+
+\subsection*{Sumar Resultados}
+Una vez que ambos resultados recursivos están disponibles, se combinan.
+\begin{itemize}
+    \item Se \textbf{carga} el valor de $fib(n-1)$ que se había guardado en la pila en el registro temporal \texttt{\$t0} (\texttt{lw \$t0, 0(\$sp)}).
+    \item Se realiza la \textbf{suma} de los dos términos: \texttt{\$t0} (que contiene $fib(n-1)$) y \texttt{\$v0} (que ahora contiene $fib(n-2)$). El resultado de esta suma, que es $fib(n)$, se guarda en \texttt{\$v0}, el registro estándar para el valor de retorno de la función.
+\end{itemize}
+
+\subsection*{Restaurar Contexto y Retornar}
+Antes de salir de la función, se debe restaurar el estado original de los registros y la pila.
+\begin{itemize}
+    \item Se \textbf{recupera} la dirección de retorno original (\texttt{\$ra}) de la pila (\texttt{lw \$ra, 8(\$sp)}). Esto garantiza que, al finalizar la función actual, el control regrese a la instrucción correcta en la función que la llamó.
+    \item Se ajusta el puntero de la pila (\texttt{addi \$sp, \$sp, 12}), sumando $12$ bytes. Esto \textbf{libera} el espacio que se había reservado al inicio de la función.
+    \item La instrucción \texttt{jr \$ra} ("jump register") salta a la dirección de memoria almacenada en \texttt{\$ra}, devolviendo el control al punto en el código desde donde se llamó a esta instancia de \texttt{fibonacci}.
+\end{itemize}
+
+\subsection*{Etiqueta \texttt{base\_case}}
+Esta sección maneja los casos base de la recursión de Fibonacci.
+\begin{itemize}
+    \item Para los valores de $n=0$ o $n=1$, el resultado de $fib(n)$ es simplemente $n$ mismo. Por lo tanto, el valor de $n$ (que se encuentra en \texttt{\$a0}) se \textbf{mueve} directamente a \texttt{\$v0} (\texttt{move \$v0, \$a0}), que es el registro de retorno.
+    \item Se utiliza \texttt{jr \$ra} para retornar. En este caso, no hay necesidad de ajustar la pila porque el espacio para el marco de pila se reservó después de la comprobación del caso base; solo las llamadas recursivas que necesitan más espacio y guardar el contexto lo hacen.
+\end{itemize}
+
+\section*{Pregunta 6}
+
+\subsection*{Justificar la elección del enfoque (iterativo o recursivo) según eficiencia y claridad en MIPS.}
+
+La elección de implementar el cálculo de Fibonacci de forma \textbf{recursiva} en MIPS32, en lugar de una solución iterativa, se hizo con un propósito pedagógico muy claro: demostrar explícitamente cómo funciona la \textbf{recursión} en un lenguaje de bajo nivel y, lo que es más importante, cómo se gestiona el uso de la \textbf{pila}.
+
+El algoritmo recursivo para Fibonacci ($fib(n) = fib(n-1) + fib(n-2)$) es un ejemplo canónico de recursión, lo que lo hace ideal para entender este concepto fundamental. Al implementar la recursión en MIPS, el código refleja casi directamente la definición matemática. Se puede ver cómo la función se llama a sí misma con $n-1$ y $n-2$, y cómo esos resultados se combinan. Esto proporciona una representación visual y lógica clara de lo que significa que una función se llame a sí misma.
+
+En MIPS32, cada vez que la función \texttt{fibonacci} se llama a sí misma, somos nosotros quienes debemos explícitamente manipular el puntero de la pila (\texttt{\$sp}) y usar las instrucciones \texttt{sw} (store word) y \texttt{lw} (load word) para guardar y restaurar los registros importantes (como \texttt{\$ra} y \texttt{\$a0}). Este proceso manual \textbf{revela directamente el mecanismo de los marcos de pila}.
+
+En resumen, la elección del enfoque recursivo para Fibonacci en MIPS32 se hizo por su capacidad excepcional para ilustrar de forma cristalina los principios de la recursión y la gestión explícita de la pila en la arquitectura MIPS.
+
+\section*{Análisis y Discusión de Resultados}
+
+Este documento ha explorado en detalle la implementación de la serie de Fibonacci en MIPS32, centrándose particularmente en el enfoque recursivo, y lo ha contrastado con aspectos de la implementación iterativa y la gestión de la memoria a bajo nivel. Los resultados y discusiones clave se pueden agrupar en varias áreas:
+
+\subsection*{\Large La Recursividad como Herramienta Pedagógica}
+La elección de implementar Fibonacci de forma recursiva, a pesar de sus conocidas desventajas de eficiencia, se justifica plenamente desde una perspectiva educativa. Como se detalla en la Pregunta 6, el algoritmo recursivo de Fibonacci es un "ejemplo canónico" que permite una comprensión "cristalina" de la recursión en el contexto de MIPS32. La correspondencia directa con la definición matemática facilita la comprensión del flujo de control recursivo, mostrando cómo una función se llama a sí misma para resolver subproblemas más pequeños. Este enfoque pedagógico es invaluable para estudiantes que se inician en la programación de bajo nivel y en la arquitectura de computadoras.
+
+\subsection*{\Large Gestión Explícita de la Pila: Un Aprendizaje Crucial}
+Un punto central de este análisis es el papel de la pila (\texttt{\$sp}) en la recursión. A diferencia de los lenguajes de alto nivel donde la gestión de la pila es implícita, el código MIPS32 obliga a una manipulación explícita del \texttt{\$sp} y de las instrucciones \texttt{sw} y \texttt{lw}. Esta obligatoriedad revela directamente el mecanismo de los "marcos de pila". Se evidencia cómo cada llamada a función requiere guardar su contexto (dirección de retorno \texttt{\$ra} y argumentos \texttt{\$a0}), permitiendo a cada instancia recursiva operar de forma independiente y saber a dónde regresar. Esta visibilidad es una ventaja fundamental para entender la arquitectura subyacente.
+
+\subsection*
+
+\subsection*{\Large El Desbordamiento Aritmético y sus Implicaciones en MIPS}
+La mención del desbordamiento aritmético es un recordatorio importante de las limitaciones de los tipos de datos a nivel de hardware. El hecho de que en MIPS32 no haya una forma directa de "aumentar" el tipo de dato como en lenguajes de alto nivel subraya la necesidad de verificaciones explícitas de límites o de replantear el algoritmo para evitar exceder los $2^{31}-1$ (o $2,147,483,647$) para enteros con signo. Esto resalta que, a bajo nivel, la gestión de rangos numéricos es responsabilidad directa del programador.
+
+\subsection*{\Large Variaciones en las Implementaciones de Fibonacci}
+Las diferencias señaladas entre ejemplos académicos y una implementación "completa y operativa" (Pregunta 4) revelan la flexibilidad y los matices del desarrollo en ensamblador. Desde la elección de los casos base hasta el manejo de registros (\texttt{\$s1} vs. almacenamiento directo en pila) y el flujo del caso base, se demuestra que no hay una única "mejor" implementación. Cada variación puede optimizar un aspecto diferente (uso de registros, claridad del flujo, etc.), lo que obliga a tomar decisiones de diseño informadas.
+
+\subsection*{\Large Conclusión del Análisis}
+En síntesis, el estudio del código de Fibonacci en MIPS32 ha servido como una plataforma excelente para comprender la recursión a un nivel fundamental, poniendo de manifiesto la crítica interacción entre el código, la pila y los registros. Si bien ha expuesto las ineficiencias de la recursión directa para este problema, ha proporcionado una valiosa visión de cómo los lenguajes de bajo nivel gestionan procesos que son automáticos en entornos de más alto nivel. Este conocimiento es esencial para el desarrollo de software optimizado y para la depuración de problemas relacionados con la memoria y el rendimiento en sistemas embebidos o críticos.
+
+\end{document}
+
+\end{document}
