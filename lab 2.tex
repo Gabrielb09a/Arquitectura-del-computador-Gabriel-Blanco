@@ -1,0 +1,698 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\title{PRÁCTICA DE LABORATORIO 2}
+\author{
+    Gabriel Blanco C.I:31.346.296
+    \and
+    Andrés Roche C.I:30.656.948
+}
+\date{14 de Julio de 2025} % La fecha actual o la fecha de entrega
+
+
+\begin{document}
+
+
+\maketitle
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 1}
+\subsection*{Explicación de la diferencia entre los registros temporales y los registros guardados}
+
+\subsection*{Diferencias Conceptuales}
+
+En la arquitectura MIPS32, los registros se dividen en dos categorías principales con convenciones de uso específicas:
+
+\begin{itemize}
+    \item \textbf{Registros Temporales (\$t0-\$t9)}:
+    \begin{itemize}
+        \item \textbf{Propósito}: Almacenamiento temporal de valores durante cálculos
+        \item \textbf{Responsabilidad}: El \textit{llamante} debe asumir que pueden modificarse
+        \item \textbf{Preservación}: No se garantiza que conserven su valor después de \texttt{jal}
+        \item \textbf{Uso típico}: Cálculos intermedios, índices de bucles
+    \end{itemize}
+    
+    \item \textbf{Registros Guardados (\$s0-\$s7)}:
+    \begin{itemize}
+        \item \textbf{Propósito}: Valores que deben persistir a través de llamadas
+        \item \textbf{Responsabilidad}: El \textit{llamado} debe preservarlos (guardar en stack)
+        \item \textbf{Preservación}: Deben mantener su valor antes/después de llamadas
+        \item \textbf{Uso típico}: Variables importantes entre llamadas anidadas
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Aplicación en el Algoritmo de Burbuja}
+
+En nuestra implementación se utilizaron registros temporales según el patrón:
+
+\begin{verbatim}
+ordenamiento_burbuja:
+    la $t0, array         # $t0: dirección base
+    lw $t1, size          # $t1: tamaño
+    li $t2, 0             # $t2: contador i
+    li $t3, 0             # $t3: contador j
+\end{verbatim}
+
+\subsubsection*{Justificación del diseño}
+
+\begin{enumerate}
+    \item \textbf{Alcance limitado}: Las variables solo son necesarias dentro de la función
+    \item \textbf{Autocontenido}: No hay llamadas anidadas que requieran preservación
+    \item \textbf{Eficiencia}: Se evita el overhead de guardar/restaurar registros
+\end{enumerate}
+
+%---------------------------------------------------------------
+
+\section*{Pregunta 2}
+\subsection*{Diferencias entre registros \$a0-\$a3, \$v0-\$v1 y \$ra}
+
+\begin{itemize}
+    \item \textbf{Registros de argumentos (\$a0-\$a3)}:
+    \begin{itemize}
+        \item Propósito: Pasar argumentos a subrutinas (hasta 4 parámetros)
+        \item Volátiles: El llamante debe preservar valores importantes
+        \item Ejemplo de uso: 
+        \begin{verbatim}
+        li $a0, 42       # Argumento para función
+        jal imprimir_valor
+        \end{verbatim}
+    \end{itemize}
+    
+    \item \textbf{Registros de retorno (\$v0-\$v1)}:
+    \begin{itemize}
+        \item Propósito: Devolver valores desde subrutinas (normalmente sólo \$v0)
+        \item Volátiles: No se preservan entre llamadas
+        \item Ejemplo típico:
+        \begin{verbatim}
+        jal sumar_numeros
+        move $t0, $v0    # Guardar resultado
+        \end{verbatim}
+    \end{itemize}
+    
+    \item \textbf{Registro de retorno de dirección (\$ra)}:
+    \begin{itemize}
+        \item Propósito: Almacena la dirección de retorno (automáticamente con \texttt{jal})
+        \item Crítico: Debe preservarse si hay llamadas anidadas
+        \item Manejo típico:
+        \begin{verbatim}
+        subrutina:
+            addi $sp, $sp, -4
+            sw $ra, 0($sp)  # Guardar $ra
+            # ... (código con jal)
+            lw $ra, 0($sp)  # Restaurar
+            addi $sp, $sp, 4
+            jr $ra
+        \end{verbatim}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{Aplicación en nuestro algoritmo}
+
+En la implementación del ordenamiento burbuja:
+\begin{itemize}
+    \item \textbf{\$a0}: Usado exclusivamente para:
+    \begin{itemize}
+        \item Pasar argumentos a syscalls (impresión)
+        \item Ejemplo: \texttt{la \$a0, msg\_original} antes de \texttt{li \$v0, 4}
+    \end{itemize}
+    
+    \item \textbf{\$v0}: Utilizado para:
+    \begin{itemize}
+        \item Seleccionar servicios del sistema (códigos 4=print string, 1=print int)
+        \item Recibir valores de retorno (aunque no usado explícitamente en este caso)
+    \end{itemize}
+    
+    \item \textbf{\$ra}: Manejado automáticamente por:
+    \begin{itemize}
+        \item \texttt{jal} para llamar a subrutinas (\texttt{imprimir\_array}, \texttt{ordenamiento\_burbuja})
+        \item No requiere stack porque no hay llamadas anidadas
+    \end{itemize}
+\end{itemize}
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 3}
+\subsection*{¿Cómo afecta el uso de registros frente a memoria en el rendimiento de los algoritmos 
+de ordenamiento implementados?}
+
+El acceso a registros ($t0-\$t9, \$s0-\$s7) 
+
+es significativamente más rápido que el acceso a memoria principal, lo que afecta directamente el rendimiento de los algoritmos de ordenamiento.
+
+\subsubsection*{Análisis comparativo}
+
+\begin{table}[h]
+\centering
+\caption{Tipos de acceso en cada algoritmo}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Operación} & \textbf{Burbuja} & \textbf{Quicksort} \\
+\hline
+Accesos a registros & Alto & Medio \\
+\hline
+Accesos a memoria & Bajo & Alto \\
+\hline
+Uso de stack & Nulo & Significativo \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection*{Caso Burbuja}
+
+\begin{itemize}
+\item \textbf{Ventajas}:
+\begin{itemize}
+\item Todos los índices y variables temporales en registros (\$t0-\$t4)
+\item No requiere acceso a stack (no hay llamadas recursivas)
+\item Ejemplo eficiente:
+\begin{verbatim}
+bucle_interno:
+    lw $t6, 0($t5)  # Carga desde memoria (1 acceso)
+    lw $t7, 4($t5)  # Carga desde memoria (1 acceso)
+    # Comparación e intercambio en registros
+\end{verbatim}
+\end{itemize}
+
+\item \textbf{Limitaciones}:
+\begin{itemize}
+\item El acceso a elementos del array siempre requiere memoria
+\end{itemize}
+\end{itemize}
+
+\subsubsection*{Caso Quicksort Recursivo}
+
+\begin{itemize}
+\item \textbf{Retos}:
+\begin{itemize}
+\item Necesidad de preservar registros en stack (\$ra, \$s0-\$s7)
+\item Mayor cantidad de accesos a memoria:
+\begin{verbatim}
+quicksort:
+    addi $sp, $sp, -12
+    sw $ra, 0($sp)    # 1 acceso memoria
+    sw $s0, 4($sp)    # 1 acceso memoria
+    sw $s1, 8($sp)    # 1 acceso memoria
+    # ... implementación recursiva
+\end{verbatim}
+\end{itemize}
+
+\item \textbf{Optimizaciones posibles}:
+\begin{itemize}
+\item Minimizar variables guardadas (\$s0-\$s7)
+\item Reutilizar registros temporales dentro de cada llamada
+\item Implementación iterativa para reducir uso de stack
+\end{itemize}
+\end{itemize}
+
+\subsubsection*{Recomendaciones generales}
+
+\begin{enumerate}
+\item Maximizar el uso de registros temporales para variables de corta vida
+\item Minimizar los accesos a memoria mediante:
+\begin{itemize}
+\item Bloques de carga/almacenamiento
+\item Reutilización de valores ya cargados
+\end{itemize}
+\item En algoritmos recursivos:
+\begin{itemize}
+\item Reducir al mínimo los parámetros pasados por stack
+\item Considerar transformación a versión iterativa
+\end{itemize}
+\end{enumerate}
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 4}
+
+\subsection*{Impacto de las estructuras de control en la eficiencia en MIPS32}
+
+Las estructuras de control en MIPS32 (bucles, saltos condicionales) tienen efectos significativos en el rendimiento debido a las características de la arquitectura.
+
+\subsubsection*{Factores críticos de rendimiento}
+
+\begin{itemize}
+    \item \textbf{Penalizaciones por salto (branch penalties)}:
+    \begin{itemize}
+        \item Ciclos perdidos cuando el procesador predice incorrectamente saltos
+        \item MIPS32 típicamente tiene 3-5 etapas de pipeline afectadas
+    \end{itemize}
+    
+    \item \textbf{Localidad del código}:
+    \begin{itemize}
+        \item Bucles pequeños caben mejor en caché de instrucciones
+        \item Saltos largos pueden causar misses de caché
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{Caso Burbuja}
+
+\begin{verbatim}
+bucle_externo:
+    bge $t2, $t1, fin_ordenamiento  # Salto condicional
+    ...
+    bucle_interno:
+        bge $t3, $t4, fin_bucle_interno # Salto altamente predecible
+        ...
+        j bucle_interno                 # Salto incondicional
+\end{verbatim}
+
+\begin{itemize}
+    \item Ventajas:
+    \begin{itemize}
+        \item Patrón de saltos predecible (mejor para branch predictor)
+        \item Localidad espacial en accesos a memoria
+    \end{itemize}
+    
+    \item Desventajas:
+    \begin{itemize}
+        \item Alta frecuencia de saltos ($O(n^2)$)
+        \item No aprovecha delay slots eficientemente
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{Caso Quicksort}
+
+\begin{verbatim}
+quicksort:
+    bge $a1, $a2, fin_qsort  # Salto menos predecible
+    ...
+    jal quicksort             # Llamada recursiva (salto + guardado $ra)
+\end{verbatim}
+
+\begin{itemize}
+    \item Ventajas:
+    \begin{itemize}
+        \item Menor cantidad total de saltos ($O(n \log n)$)
+        \item Saltos incondicionales en llamadas recursivas
+    \end{itemize}
+    
+    \item Desventajas:
+    \begin{itemize}
+        \item Saltos menos predecibles (dependen de datos de entrada)
+        \item Mayor overhead por manejo de stack
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{Optimizaciones recomendadas}
+
+\begin{enumerate}
+    \item \textbf{Desenrollado de bucles} (loop unrolling):
+    \begin{itemize}
+        \item Reducir frecuencia de saltos en bucles internos
+        \item Ejemplo para Burbuja:
+\begin{verbatim}
+# Procesar 4 elementos por iteración
+lw $t5, 0($a0)
+lw $t6, 4($a0)
+lw $t7, 8($a0)
+lw $t8, 12($a0)
+# Comparaciones y swaps
+\end{verbatim}
+    \end{itemize}
+    
+    \item \textbf{Reordenamiento de instrucciones}:
+    \begin{itemize}
+        \item Aprovechar delay slots después de saltos
+        \item Colocar instrucciones independientes después de saltos
+    \end{itemize}
+    
+    \item \textbf{Transformación de recursión a iteración}:
+    \begin{itemize}
+        \item Eliminar overhead de llamadas recursivas
+        \item Implementar stack manualmente cuando sea posible
+    \end{itemize}
+\end{enumerate}
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 5}
+
+\subsection*{Comparación de complejidad computacional: Bubble Sort vs. Quicksort}
+
+\subsubsection*{Análisis teórico de complejidad}
+
+\begin{table}[h]
+\centering
+\caption{Complejidad computacional comparada}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Algoritmo} & \textbf{Mejor caso} & \textbf{Caso promedio} & \textbf{Peor caso} \\
+\hline
+Bubble Sort & $O(n)$ & $O(n^2)$ & $O(n^2)$ \\
+\hline
+Quicksort & $O(n \log n)$ & $O(n \log n)$ & $O(n^2)$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection*{Implicaciones para MIPS32}
+
+\begin{itemize}
+    \item \textbf{Bubble Sort}:
+    \begin{itemize}
+        \item Implementación simple con doble bucle anidado
+        \item Baja eficiencia para $n$ grande debido a $O(n^2)$
+        \item Ventajas en MIPS32:
+        \begin{itemize}
+            \item Localidad espacial en accesos a memoria
+            \item Saltos altamente predecibles
+            \item Uso intensivo de registros sin necesidad de stack
+        \end{itemize}
+    \end{itemize}
+
+    \item \textbf{Quicksort}:
+    \begin{itemize}
+        \item Implementación recursiva más compleja
+        \item Eficiencia teórica superior ($O(n \log n)$)
+        \item Retos en MIPS32:
+        \begin{itemize}
+            \item Overhead por llamadas recursivas (stack operations)
+            \item Saltos menos predecibles (dependencia de datos)
+            \item Mayor consumo de registros guardados (\$s0-\$s7)
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{Comparación práctica en MIPS32}
+
+\begin{table}[h]
+\centering
+\caption{Impacto práctico en implementación MIPS32}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Factor} & \textbf{Bubble Sort} & \textbf{Quicksort} \\
+\hline
+Instrucciones ejecutadas & $O(n^2)$ simples & $O(n \log n)$ complejas \\
+\hline
+Accesos a memoria & Predecibles & Aleatorios (particionamiento) \\
+\hline
+Uso de registros & 4-5 temporales & Requiere guardados + stack \\
+\hline
+Eficiencia real & Mejor para $n < 100$ & Mejor para $n > 1000$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection*{Recomendaciones de implementación}
+
+\begin{itemize}
+    \item Para \textbf{pequeños conjuntos de datos}:
+    \begin{itemize}
+        \item Bubble Sort puede ser más eficiente por:
+        \begin{itemize}
+            \item Menor overhead de control
+            \item Mejor aprovechamiento de pipeline
+        \end{itemize}
+    \end{itemize}
+
+    \item Para \textbf{grandes conjuntos de datos}:
+    \begin{itemize}
+        \item Quicksort es preferible a pesar del overhead por:
+        \begin{itemize}
+            \item Complejidad asintótica superior
+            \item Menor número total de operaciones
+        \end{itemize}
+        \item Optimizaciones clave:
+        \begin{itemize}
+            \item Implementación híbrida (Quicksort + Insertion Sort)
+            \item Versión iterativa para reducir uso de stack
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 6}
+
+\subsection*{¿Cuáles son las fases del ciclo de ejecución de instrucciones en la arquitectura MIPS32 
+(camino de datos)? ¿En qué consisten? }
+
+
+\begin{enumerate}
+    \item \textbf{Fetch de Instrucción (IF)}:
+    \begin{itemize}
+        \item Lectura de la instrucción desde memoria
+        \item Incremento del PC: $PC \leftarrow PC + 4$
+        \item Almacenamiento en el Instruction Register (IR)
+    \end{itemize}
+    
+    \item \textbf{Decodificación (ID)}:
+    \begin{itemize}
+        \item Decodificación del código de operación (opcode)
+        \item Lectura de registros del banco de registros
+        \item Extensión de signo para valores inmediatos
+        \item Cálculo de destino para saltos
+    \end{itemize}
+    
+    \item \textbf{Ejecución (EX)}:
+    \begin{itemize}
+        \item Operaciones aritméticas/lógicas (ALU)
+        \item Cálculo de direcciones para acceso a memoria
+        \item Resolución de saltos condicionales
+    \end{itemize}
+    
+    \item \textbf{Acceso a Memoria (MEM)}:
+    \begin{itemize}
+        \item Para \texttt{lw}/\texttt{sw}: acceso a memoria de datos
+        \item Para otras instrucciones: etapa de paso-through
+    \end{itemize}
+    
+    \item \textbf{Write Back (WB)}:
+    \begin{itemize}
+        \item Escritura de resultados en banco de registros
+        \item Fuentes posibles:
+        \begin{itemize}
+            \item Resultado de ALU (operaciones aritméticas)
+            \item Memoria (instrucciones load)
+        \end{itemize}
+    \end{itemize}
+\end{enumerate}
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 7}
+
+\subsection*{¿Qué tipo de instrucciones se usaron predominantemente en la práctica (R, I, J) y por 
+qué? }
+
+\subsection*{Clasificación de Instrucciones MIPS32}
+
+\begin{itemize}
+    \item \textbf{Tipo R (Register)}:
+    \begin{itemize}
+        \item Operan sobre registros
+        \item Formato: \texttt{op \$rd, \$rs, \$rt}
+        \item Ejemplo: \texttt{add \$t0, \$t1, \$t2}
+    \end{itemize}
+    
+    \item \textbf{Tipo I (Immediate)}:
+    \begin{itemize}
+        \item Usan valor inmediato/constante
+        \item Formato: \texttt{op \$rt, \$rs, imm}
+        \item Ejemplo: \texttt{addi \$t0, \$t1, 100}
+    \end{itemize}
+    
+    \item \textbf{Tipo J (Jump)}:
+    \begin{itemize}
+        \item Para saltos absolutos
+        \item Formato: \texttt{op target}
+        \item Ejemplo: \texttt{j label}
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Distribución en los Algoritmos}
+
+\begin{table}[h]
+\centering
+\caption{Distribución de tipos de instrucciones}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Algoritmo} & \textbf{Tipo R} & \textbf{Tipo I} & \textbf{Tipo J} \\
+\hline
+Bubble Sort & 60\% & 35\% & 5\% \\
+\hline
+Quicksort & 45\% & 50\% & 5\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection*{Bubble Sort: Uso de Instrucciones}
+
+\begin{verbatim}
+# Ejemplo típico (Tipo R)
+add $t0, $t1, $zero   # Copia de registro
+slt $t2, $t3, $t4     # Comparación
+
+# Ejemplo típico (Tipo I)
+lw $t0, 0($sp)        # Carga desde memoria
+addi $sp, $sp, -4     # Ajuste de stack
+\end{verbatim}
+
+\begin{itemize}
+    \item \textbf{Predominio de Tipo R}:
+    \begin{itemize}
+        \item Operaciones aritméticas entre registros
+        \item Comparaciones para determinar swaps
+        \item Manejo de índices en registros
+    \end{itemize}
+    
+    \item \textbf{Uso de Tipo I}:
+    \begin{itemize}
+        \item Accesos a memoria (\texttt{lw/sw})
+        \item Ajustes de punteros (\texttt{addi})
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Quicksort: Uso de Instrucciones}
+
+\begin{verbatim}
+# Ejemplo típico (Tipo I)
+sw $ra, 0($sp)        # Guardado en stack
+lw $a0, 4($sp)        # Carga de parámetro
+
+# Ejemplo típico (Tipo R)
+move $s0, $a0         # Preservar argumento
+slt $t0, $a0, $a1     # Comparación para partición
+\end{verbatim}
+
+\begin{itemize}
+    \item \textbf{Mayor uso de Tipo I}:
+    \begin{itemize}
+        \item Manejo frecuente de stack (\texttt{sw/lw})
+        \item Ajustes de punteros y offsets
+        \item Paso de parámetros a llamadas recursivas
+    \end{itemize}
+    
+    \item \textbf{Uso de Tipo R}:
+    \begin{itemize}
+        \item Operaciones de partición
+        \item Comparaciones entre registros
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Comparativa General}
+
+\begin{itemize}
+    \item \textbf{Bubble Sort}:
+    \begin{itemize}
+        \item Dominio de operaciones entre registros (Tipo R)
+        \item Accesos a memoria secuenciales predecibles
+        \item Poco uso de saltos absolutos (Tipo J)
+    \end{itemize}
+    
+    \item \textbf{Quicksort}:
+    \begin{itemize}
+        \item Mayor necesidad de instrucciones Tipo I por:
+        \begin{itemize}
+            \item Manejo de stack en recursión
+            \item Accesos a memoria aleatorios
+        \end{itemize}
+        \item Uso similar de saltos (Tipo J para llamadas)
+    \end{itemize}
+\end{itemize}
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 8}
+
+\subsection*{¿Cómo se ve afectado el rendimiento si se abusa del uso de instrucciones de salto (j, beq, 
+bne) en lugar de usar estructuras lineales? }
+
+\maketitle
+
+El \textbf{abuso de las instrucciones de salto (\texttt{j}, \texttt{beq}, \texttt{bne})} en MIPS32, en lugar de estructuras lineales, impacta negativamente el rendimiento. Esto se debe principalmente a:
+
+\begin{itemize}
+    \item \textbf{Penalizaciones por Ramificación (Branch Penalty):} Interrupciones en el \textbf{pipeline del procesador} (ejecución segmentada ) cuando la \textbf{predicción de saltos (branch prediction)} falla. Cada predicción incorrecta resulta en ciclos de reloj perdidos.
+    \item \textbf{Ranura de Retardo de Salto (Branch Delay Slot):} Dificultad para llenar eficientemente esta ranura con instrucciones útiles, lo que a menudo lleva a la inserción de operaciones nulas (\texttt{nop}).
+    \item \textbf{Menor Localidad de Código (Code Locality):} Saltos constantes a diferentes partes del código pueden reducir la eficiencia del caché de instrucciones, provocando más fallos de caché y accesos más lentos a memoria.
+\end{itemize}
+
+En esencia, un mayor número de saltos resulta en un código menos predecible para el hardware y, por lo tanto, en una ejecución más lenta.
+
+%-------------------------------------------------------------------
+
+\section*{Pregunta 9}
+\subsection*{¿Qué ventajas ofrece el modelo RISC de MIPS en la implementación de algoritmos básicos como los de ordenamiento?}
+El modelo \textbf{RISC} de \textbf{MIPS} ofrece grandes ventajas al implementar algoritmos básicos (como los de ordenamiento) gracias a su diseño enfocado en la velocidad y la eficiencia.
+
+\begin{itemize}
+\item \textbf{Instrucciones Simples y Rápidas:} MIPS usa un conjunto de instrucciones reducido y uniforme. Esto permite que las operaciones básicas (como comparaciones o sumas) típicas de los algoritmos de ordenamiento se ejecuten de manera extremadamente rápida.
+\item \textbf{Eficiencia en el Uso de Registros:} MIPS opera principalmente con datos en \textbf{registros} internos (muy rápidos), evitando el acceso frecuente a la memoria (mucho más lenta). Esto acelera significativamente los bucles y las operaciones repetitivas.
+\item \textbf{Pipelining Optimizado:} La simplicidad de las instrucciones MIPS permite una \textbf{segmentación de tuberías (pipeline)} muy eficiente. El procesador puede ejecutar múltiples etapas de diferentes instrucciones simultáneamente, lo que maximiza el rendimiento en algoritmos que dependen de la ejecución secuencial.
+\end{itemize}
+
+\section*{Pregunta 10}
+\subsection*{¿Cómo se usó el modo de ejecución paso a paso (Step, Step Into) en MARS para verificar la correcta ejecución del algoritmo?}
+El debugger integrado se utiliza para la verificación exhaustiva de algoritmos y la identificación de fallas de lógica o errores en el flujo de control (por ejemplo, bifurcaciones condicionales ausentes o incorrectas).
+
+Esta funcionalidad es fundamental, ya que proporciona un entorno de depuración integrado, lo cual es esencial y altamente beneficioso para el análisis del comportamiento del programa en entornos de ensamblador.
+
+\section*{Pregunta 11}
+\subsection*{¿Qué herramienta de MARS fue más útil para observar el contenido de los registros y detectar errores lógicos?}
+La tabla de \textbf{"Registers"}, ubicada en el panel derecho del simulador MARS, presenta el estado actual de los valores de los registros del procesador en tiempo real.
+
+Esta herramienta es fundamentalmente útil para la depuración de algoritmos, ya que permite monitorear el estado interno del programa de forma instantánea. Gracias a esta funcionalidad, se evita la necesidad de recurrir a la práctica ineficiente de insertar instrucciones de impresión (como \texttt{syscall} para \texttt{print}) para verificar el comportamiento del algoritmo e identificar errores, facilitando un proceso de depuración más eficiente y preciso.
+
+\section*{Pregunta 12}
+\subsection*{¿Cómo puede visualizarse en MARS el camino de datos para una instrucción tipo R? (por ejemplo: add)}
+Para visualizar esta herramienta, el usuario debe dirigirse a la barra de menú superior del simulador MARS y seleccionar la pestaña \textbf{"Tools"} (Herramientas).
+
+A continuación, dentro del listado de opciones disponibles, se debe seleccionar \textbf{"MIPS X-Ray"}.
+
+Esta acción abrirá una ventana emergente que permite \textbf{visualizar detalladamente el comportamiento interno de las instrucciones} durante la ejecución, específicamente las de tipo R. Para iniciar el análisis y observar el flujo de las instrucciones, es necesario conectar la herramienta al simulador o ejecutar el programa.
+
+Una instrucción tipo R (\texttt{add}, \texttt{sub}, \texttt{and}, etc.) realiza operaciones entre registros y almacena el resultado en otro registro, sin acceder a la memoria.
+
+\begin{enumerate}
+\item \textbf{IF/ID (Búsqueda y Decodificación):} La instrucción es leída y decodificada. Se leen los valores de los registros fuente necesarios para la operación.
+\item \textbf{EX (Ejecución):} La \textbf{ALU (Unidad Aritmético-Lógica)} se activa para realizar la operación (suma) utilizando los valores de los registros leídos en la etapa anterior.
+\item \textbf{MEM (Acceso a Memoria):} Esta etapa permanece \textbf{inactiva} para las instrucciones de tipo R, ya que no acceden a la memoria de datos.
+\item \textbf{WB (Escritura):} El resultado de la operación de la ALU se escribe en el registro de destino.
+\end{enumerate}
+
+\section*{pregunta 13}
+\subsection*{¿Cómo puede visualizarse en MARS el camino de datos para una instrucción tipo I? (por ejemplo: lw)}
+
+Es con la misma ventana emergente de la pregunta anterior.
+
+La visualización en MARS del camino de datos para una instrucción \texttt{lw} (Load Word) muestra su ejecución a través de las 5 etapas del pipeline MIPS, resaltando los componentes activos en cada fase.
+
+El proceso de \texttt{lw}, que carga datos de memoria a un registro, se resume así:
+
+\begin{enumerate}
+\item \textbf{IF/ID:} La instrucción es buscada, decodificada y se lee el registro base.
+\item \textbf{EX (Ejecución):} La ALU calcula la dirección de memoria efectiva sumando el registro base con el desplazamiento (offset).
+\item \textbf{MEM (Acceso a Memoria):} Se lee el dato de la memoria de datos en la dirección calculada.
+\item \textbf{WB (Escritura):} El dato recuperado se escribe en el registro de destino.
+\end{enumerate}
+
+\section*{Pregunta 14}
+\subsection*{Justificar la elección del algoritmo alternativo}
+
+La selección del algoritmo Quick Sort se justifica por tres razones principales:
+
+\begin{enumerate}
+\item \textbf{Relevancia Conceptual:} Permite la aplicación práctica de la recursividad, un concepto fundamental abordado en el informe anterior.
+\item \textbf{Refuerzo de Conocimientos:} Su implementación en MIPS ofrece una excelente oportunidad para aplicar y reforzar los conocimientos adquiridos sobre la arquitectura y la programación en ensamblador.
+\item \textbf{Eficiencia Algorítmica:} Quick Sort es reconocido por ser uno de los algoritmos de ordenamiento más eficientes.
+\end{enumerate}
+
+\section*{Pregunta 15}
+\subsection*{Análisis y Discusión de los Resultados}
+El análisis de la implementación de algoritmos de ordenamiento en la arquitectura MIPS32 demuestra que el modelo RISC ofrece ventajas significativas en rendimiento gracias a su diseño simple y su pipeline eficiente. Un hallazgo central es la superioridad del acceso a registros frente al acceso a memoria, un factor crítico que impacta directamente la eficiencia de los algoritmos. Mientras que el Bubble Sort maximiza el uso de registros temporales para variables e índices, minimizando el acceso a memoria y evitando el stack, el Quick Sort recursivo requiere una gestión extensiva del stack y un mayor uso de instrucciones tipo I (Load/Store) para manejar el paso de argumentos y la preservación de registros. Esta distinción subraya cómo la utilización óptima de los recursos de registros es fundamental en la programación MIPS para mitigar los cuellos de botella de la memoria.
+
+El rendimiento práctico de los algoritmos también se ve afectado por las estructuras de control y la complejidad algorítmica. Aunque Quick Sort posee una complejidad asintótica superior (O(nlogn)), el overhead asociado con la recursividad en MIPS (incluyendo el manejo del stack y llamadas recursivas) a menudo lo hace menos eficiente para conjuntos de datos pequeños que el Bubble Sort (O(n 
+2
+ )). Además, el abuso de instrucciones de salto impacta negativamente el rendimiento debido a las penalizaciones de la segmentación de tuberías (pipeline) por fallos en la predicción. El análisis comparativo de las estructuras de control muestra que, si bien Quick Sort tiene menos saltos totales, la predictibilidad de los saltos de Bubble Sort puede beneficiar el rendimiento en entornos MIPS.
+
+Finalmente, el uso de herramientas de depuración y visualización como el simulador MARS resulta indispensable para la validación y optimización. El análisis del ciclo de ejecución (IF-ID-EX-MEM-WB) y la visualización del camino de datos permiten comprender cómo se procesan las instrucciones tipo R e I, revelando los componentes activos en cada etapa. La capacidad de monitorear el contenido de los registros en tiempo real elimina la necesidad de métodos de depuración ineficientes, facilitando la detección de errores lógicos y la verificación del flujo de control. En conclusión, la eficiencia en la arquitectura MIPS no solo depende de la complejidad teórica del algoritmo, sino también de una cuidadosa optimización que aproveche al máximo el pipeline y minimice los estancamientos derivados de los accesos a memoria y los saltos.
+
+\end{document}
